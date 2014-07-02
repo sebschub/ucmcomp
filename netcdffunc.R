@@ -34,18 +34,23 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
         if (length(dim)==3) {
             heights[[v]] <- NaN
         } else if (length(dim)==4) {
-            h <- var.get.nc(nc,dim.inq.nc(nc,dim[3])$name)
-            if (is.null(h)) {
-                heightids[[v]] <- seq(from=dim.inq.nc(nc,dim[3])$length, by=-1, length.out=length(levels))
-                heights[[v]] <- levels
-            } else {
+            tryCatch({
+                ## dimension variable available
+                h <- var.get.nc(nc,dim.inq.nc(nc,dim[3])$name)
                 heightids[[v]] <- which(h<=maxheight)
                 heights[[v]] <- h[heightids[[v]]]
+            }, error=function(e) {
+                ## dimension variable not available, use argument values
+                heightids[[v]] <-
+                    seq(from=dim.inq.nc(nc,dim[3])$length, by=-1, length.out=length(levels))
+                heights[[v]] <- levels
+                
             }
+                     )
         } else {
-            stop()
+            stop(paste("Number of dimensions of",v,"currently not treated."))
         }
-
+        
     }
     close.nc(nc)
     dates <- seq.POSIXt(from=startdate, by=hinc*3600, length.out=ninc)
