@@ -21,7 +21,7 @@ nurb <- read.folder.netcdf(
     icoord)
 
 ## add simulation type
-mutate(nurb, type="simulation", subtype="bulk")
+nurb <- mutate(nurb, type="simulation", subtype="bulk")
 
 
 ## DCEP simulation
@@ -33,12 +33,13 @@ urb <- read.folder.netcdf(
     icoord)
 
 ## add simulation type
-mutate(nurb, type="simulation", subtype="DCEP")
+urb <- mutate(urb, type="simulation", subtype="DCEP")
 
 simS <- rbind(nurb,urb) %>%             # merge data
     mutate(at=at-273.15,                # use degree celsius
            wv=sqrt(wvu^2+wvv^2),        # calculate total wind velocity
-           sd=sd_dir+sd_diff) %>%       # calculate total incoming shortwave radiation
+           sd=sd_dir+sd_diff,           # calculate total incoming shortwave radiation
+           al=su/sd) %>%                # calculate albedo
     select(-c(wvu,wvv,sd_dir,sd_diff))  # remove some fields
 
 save(file="DCEPbulk.Rdata", simS)

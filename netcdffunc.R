@@ -52,13 +52,16 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
         }
         
     }
+    ## round heights to ensure grouping by height is possible
+    heights <- lapply(heights, function(x) round(x, digits=2))
+
     close.nc(nc)
     dates <- seq.POSIXt(from=startdate, by=hinc*3600, length.out=ninc)
 
     ## initial empty data frames
     tempdf <- list()
     for (iv in 1:length(var)) {
-        tempdf[[var[iv]]] <- data.frame(t=as.POSIXlt(character()),
+        tempdf[[var[iv]]] <- data.frame(time=as.POSIXct(character()),
                                         site=character(),
                                         height=numeric(),
                                         value=numeric())
@@ -95,7 +98,7 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
                 tempdf[[v]] <- rbind(
                     tempdf[[v]],
                     data.frame(
-                        t=dates[id],
+                        time=dates[id],
                         site=sitelli$site[s],
                         height=heights[[v]],
                         value=values)

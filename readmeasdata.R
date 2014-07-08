@@ -24,43 +24,56 @@ library(reshape2)
 library(dplyr)
 
 readBUBBLE <- function(file, site, varname, heights, sep = ",", na.strings = "NA") {
-    d <- read.table(file, sep=sep, comment.char="#", header=FALSE, na.strings=na.strings)
-    d2 <- melt(d)
-    levels(d2$variable) <- heights
-    ## NaNs for measuring errors, not NA
-    if (hasArg(na.strings)) {
-        d2$value[which(is.na(d2$value))] <- NaN
-    }
+    ## round heights to ensure grouping by height is possible
+    heights <- round(heights, digits=2)
+    
+    ## subtype to differentiate between sensors at equal height
     if (length(heights)==1) {
         subtype <- "sensor1"
     } else {
+        subtype <- vector(mode="character", length=length(heights))
         for (i in 1:length(heights)) {
-            subtype <- paste("sensor",sum(heights[1:i]==heights[i]), sep="")
+            subtype[i] <- paste("sensor",sum(heights[1:i]==heights[i]), sep="")
         }
     }
-    df <- data.frame(t=strptime(d2[,1], format="%d.%m.%Y %H:%M", tz="UTC+1"),
-                     site=site,
-                     type="measurement",
-                     subtype=subtype,
-                     height=d2$variable,
-                     value=d2$value)
-    colnames(df)[6] <- varname
-    return(df)
+
+    ## read data, melt columns and add columns
+    d <- read.table(file, sep=sep, comment.char="#", header=FALSE, na.strings=na.strings) %>%
+            melt() %>%
+                mutate(height=heights[variable],
+                       subtype=subtype[variable],
+                       time=as.POSIXct(strptime(V1, format="%d.%m.%Y %H:%M", tz="UTC+1")),
+                       site=site,
+                       type="measurement") %>%
+                           select(time, site, type, subtype, height, value) %>%
+                               arrange(time, height)
+    
+    ## NaNs for measuring errors, not NA
+    if (hasArg(na.strings)) {
+        d$value[which(is.na(d$value))] <- NaN
+    }
+    
+    ## use correct variable name
+    colnames(d)[6] <- varname
+    return(d)
 }
 
 readBUBBLEmult <- function(file, cols, sites, varname, heights, sep=",", na.strings = "NA") {
-    d <- read.table(file, sep=sep, comment.char="#", header=FALSE, na.strings = na.strings)[,c(1,cols)]
-    d2 <- melt(d)
-    df <- data.frame(t=strptime(d2[,1], format="%d.%m.%Y %H:%M", tz="UTC+1"),
-                     site=d2$variable,
-                     type="measurement",
-                     subtype="sensor1", # CHECK if several measurements per height
-                     height=d2$variable,
-                     value=d2$value)
-    levels(df$height) <- heights
-    levels(df$site) <- sites
-    colnames(df)[6] <- varname
-    return(df)
+    ## round heights to ensure grouping by height is possible
+    heights <- round(heights, digits=2)
+
+    d <- read.table(file, sep=sep, comment.char="#",
+                    header=FALSE, na.strings = na.strings)[,c(1,cols)] %>%
+                        melt() %>%
+                            mutate(time=as.POSIXct(strptime(V1, format="%d.%m.%Y %H:%M", tz="UTC+1")),
+                                   site=sites[variable],
+                                   type="measurement",
+                                   subtype="sensor1", # CHECK if several measurements per height
+                                   height=heights[variable]) %>%
+                                       select(time, site, type, subtype, height, value) %>%
+                                           arrange(time)
+    colnames(d)[6] <- varname
+    return(d)
 }
 
 ## return hourly average; apply shift to time before to take averaging
@@ -71,8 +84,8 @@ calcAverage <- function(df, shift=0) {
     names(df)[6] <- "temp"
     dfav <- df %>%
         group_by(site, type, subtype, height,
-                 datehour=cut(as.POSIXlt(t+shift), breaks="hour")) %>%
-                     summarize(t=max(t),tempav=mean(temp)) %>%
+                 datehour=cut(as.POSIXlt(time+shift), breaks="hour")) %>%
+                     summarize(time=max(time),tempav=mean(temp)) %>%
                          select(-datehour)
     names(dfav)[6] <- name
     return(dfav)
@@ -80,7 +93,7 @@ calcAverage <- function(df, shift=0) {
 
 selectFullHours <- function(df) {
     dfsel <- df %>%
-        mutate(minute=as.numeric(format(t, "%M"))) %>%
+        mutate(minute=as.numeric(format(time, "%M"))) %>%
             filter(minute==0) %>%
                 select(-minute)
     return(dfsel)
