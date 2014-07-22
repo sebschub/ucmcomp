@@ -39,22 +39,23 @@ readBUBBLE <- function(file, site, varname, heights, sep = ",", na.strings = "NA
 
     ## read data, melt columns and add columns
     d <- read.table(file, sep=sep, comment.char="#", header=FALSE, na.strings=na.strings) %>%
-            melt() %>%
-                mutate(height=heights[variable],
-                       subtype=subtype[variable],
-                       time=as.POSIXct(strptime(V1, format="%d.%m.%Y %H:%M", tz="UTC+1")),
-                       site=site,
-                       type="measurement") %>%
-                           select(time, site, type, subtype, height, value) %>%
-                               arrange(time, height)
+            melt()
+    d <- data.frame(
+        ## convert time strings, convention is opposite to common usage,
+        ## just "GMT-1" is wrong
+        time=as.POSIXct(strptime(d$V1, format="%d.%m.%Y %H:%M", tz="Etc/GMT-1")),
+        site=site,
+        type="measurement",
+        subtype=subtype[d$variable],
+        height=heights[d$variable],
+        variable=varname,
+        value=d$value)
     
     ## NaNs for measuring errors, not NA
     if (hasArg(na.strings)) {
         d$value[which(is.na(d$value))] <- NaN
     }
     
-    ## use correct variable name
-    colnames(d)[6] <- varname
     return(d)
 }
 
@@ -64,30 +65,27 @@ readBUBBLEmult <- function(file, cols, sites, varname, heights, sep=",", na.stri
 
     d <- read.table(file, sep=sep, comment.char="#",
                     header=FALSE, na.strings = na.strings)[,c(1,cols)] %>%
-                        melt() %>%
-                            mutate(time=as.POSIXct(strptime(V1, format="%d.%m.%Y %H:%M", tz="UTC+1")),
-                                   site=sites[variable],
-                                   type="measurement",
-                                   subtype="sensor1", # CHECK if several measurements per height
-                                   height=heights[variable]) %>%
-                                       select(time, site, type, subtype, height, value) %>%
-                                           arrange(time)
-    colnames(d)[6] <- varname
+                        melt()
+    ## convert time strings, convention is opposite to common usage,
+    ## just "GMT-1" is wrong
+    d <- data.frame(time=as.POSIXct(strptime(d$V1, format="%d.%m.%Y %H:%M", tz="Etc/GMT-1")),
+                    site=sites[d$variable],
+                    type="measurement",
+                    subtype="sensor1", # CHECK if several measurements per height
+                    height=heights[d$variable],
+                    variable=varname,
+                    value=d$value)
     return(d)
 }
 
 ## return hourly average; apply shift to time before to take averaging
 ## into account
 calcAverage <- function(df, shift=0) {
-    ## HACK: give last column temporary name
-    name <- names(df)[6]
-    names(df)[6] <- "temp"
     dfav <- df %>%
-        group_by(site, type, subtype, height,
+        group_by(site, type, subtype, height, variable,
                  datehour=cut(as.POSIXlt(time+shift), breaks="hour")) %>%
-                     summarize(time=max(time),tempav=mean(temp)) %>%
+                     summarize(time=max(time),value=mean(value)) %>%
                          select(-datehour)
-    names(dfav)[6] <- name
     return(dfav)
 }
 
@@ -182,7 +180,8 @@ tg <- selectFullHours(tg)
 
 ## cloud cover every 60 min
 cc <- readBUBBLE("BUBBLE/cc_bbin", "BBIN", "cc", NaN, sep="\t")
-
+## convert to range [0,1]
+cc <- mutate(cc, value=value/10)
 
 ## average potential temparature profile every 10 min, time indicates end of aggregation period
 pt <- readBUBBLE("BUBBLE/pt_bklh", "BKLH", "pt",
@@ -205,7 +204,6 @@ wd <- readBUBBLE("BUBBLE/wd_bklh", "BKLH", "wd",
 wd <- selectFullHours(wd)
 
 
-bubble <- Reduce(function(...) merge(..., all=TRUE),
-                 list(at,fh,fl,ld,lu,sd,su,wv,al,rt,tg,cc,pt,wv2,wd))
+bubble <- rbind(at,fh,fl,ld,lu,sd,su,wv,al,rt,tg,cc,pt,wv2,wd)
 
 save(file="measurements.Rdata", bubble)

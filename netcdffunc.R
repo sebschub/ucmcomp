@@ -6,7 +6,7 @@
 ##' @param folder Folder that includes NetCDF
 ##' @param startdate Date to start reading file
 ##' @param ninc Number of files to open
-##' @param var Variables to read
+##' @param var Variables to read in NetCDF files
 ##' @param varname Output variable names
 ##' @param sitelli Data frame with \code{site}, \code{ilon} and
 ##' \code{ilat} column
@@ -20,7 +20,7 @@
 ##' @return Data frame with read variables
 ##' @author Sebastian Schubert
 read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, maxheight=50, levels=NA, hinc=1, fpre="lffd", average=0) {
-    stopifnot(nrow(sitelli)>0, length(var)>0, ninc>=0, average>=0)
+    stopifnot(nrow(sitelli)>0, length(var)>0, ninc>=0, average>=0, length(var)==length(varname))
     
     require(RNetCDF)
 
@@ -60,11 +60,11 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
 
     ## initial empty data frames
     tempdf <- list()
-    for (iv in 1:length(var)) {
-        tempdf[[var[iv]]] <- data.frame(time=as.POSIXct(character()),
-                                        site=character(),
-                                        height=numeric(),
-                                        value=numeric())
+    for (vn in varname) {
+        tempdf[[vn]] <- data.frame(time=as.POSIXct(character()),
+                                   site=character(),
+                                   height=numeric(),
+                                   value=numeric())
     }
     
     ## loop over all files
@@ -72,7 +72,9 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
         print(paste("Reading", paste(folder, "/",fpre, format(dates[id], "%Y%m%d%H"), ".nc", sep="")))
         nc <- open.nc(paste(folder, "/",fpre, format(dates[id], "%Y%m%d%H"), ".nc", sep=""))
         
-        for (v in var) {
+        for (iv in 1:length(var)) {
+            v <- var[iv]
+            vn <- varname[iv]
             tempfield <- var.get.nc(nc,v, collapse=FALSE)
             for (s in 1:nrow(sitelli)) {
 
@@ -95,14 +97,13 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
                            mean
                            )
                        )
-                tempdf[[v]] <- rbind(
-                    tempdf[[v]],
+                tempdf[[vn]] <- rbind(
+                    tempdf[[vn]],
                     data.frame(
                         time=dates[id],
                         site=sitelli$site[s],
                         height=heights[[v]],
                         value=values)
-                       
                     )
             }
             
@@ -113,15 +114,12 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
         close.nc(nc)
     }
 
-    ## apply correct variable name
-    for (iv in 1:length(var)) {
-        names(tempdf[[var[iv]]])[[4]] <- varname[iv]
+    ## use correct column names
+    for (vn in varname) {
+        names(tempdf[[vn]])[4] <- vn
     }
 
-    output <- Reduce(function(...) merge(..., all=TRUE),
-                     tempdf)
-    
-    return(output)
+    return(tempdf)
 }
 
 ##' Find index of grid cells which include site

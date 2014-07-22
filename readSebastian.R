@@ -1,9 +1,10 @@
 source("netcdffunc.R")
 source("sitecoord.R")
 library(dplyr)
+library(reshape2)
 
-startdate <- strptime("2002-06-10 00:00:00", format="%Y-%m-%d %H:%M:%S", tz="GMT")
-nts <- 30*24
+startdate <- strptime("2002-06-10 01:00:00", format="%Y-%m-%d %H:%M:%S", tz="GMT")
+nts <- 30*24+1
 
 
 ## calculate site indices
@@ -21,7 +22,7 @@ nurb <- read.folder.netcdf(
     icoord)
 
 ## add simulation type
-nurb <- mutate(nurb, type="simulation", subtype="bulk")
+nurb <- lapply(nurb, function(x) cbind(x, data.frame(type="bulk")))
 
 
 ## DCEP simulation
@@ -33,13 +34,49 @@ urb <- read.folder.netcdf(
     icoord)
 
 ## add simulation type
-urb <- mutate(urb, type="simulation", subtype="DCEP")
+urb <- lapply(urb, function(x) cbind(x, data.frame(type="DCEP")))
 
-simS <- rbind(nurb,urb) %>%             # merge data
-    mutate(at=at-273.15,                # use degree celsius
-           wv=sqrt(wvu^2+wvv^2),        # calculate total wind velocity
-           sd=sd_dir+sd_diff,           # calculate total incoming shortwave radiation
-           al=su/sd) %>%                # calculate albedo
-    select(-c(wvu,wvv,sd_dir,sd_diff))  # remove some fields
+
+## combine both and ensure that fitting list elements are put
+## together, all variables in nurb have to be present in urb
+sim <- list()
+for (vn in names(nurb)) {
+    sim[[vn]] <- rbind(nurb[[vn]], urb[[vn]])
+}
+
+
+## use degree celsius
+sim$at <- mutate(sim$at, at=at-273.15)
+sim$tg <- mutate(sim$tg, tg=tg-273.15)
+
+## change convention of fluxes
+sim$fh <- mutate(sim$fh, fh=-fh)
+sim$fl <- mutate(sim$fl, fl=-fl)
+
+
+## calculate total wind velocity
+sim[["wv"]] <- merge(sim[["wvu"]], sim[["wvv"]]) %>%
+    mutate(wv = sqrt(wvu^2 + wvv^2)) %>%
+    select(-c(wvu, wvv))
+
+## calculate total incoming solar radiation
+sim[["sd"]] <- merge(sim[["sd_dir"]], sim[["sd_diff"]]) %>%
+    mutate(sd = sd_dir + sd_diff) %>%
+    select(-c(sd_dir, sd_diff))
+
+## calculate albedo
+sim[["al"]] <- merge(sim[["sd"]], sim[["su"]]) %>%
+    mutate(al = su/sd) %>%
+    select(-c(sd, su))
+
+## remove these temporary field
+for (toremove in c("wvu", "wvv", "sd_dir", "sd_diff")) {
+    sim[[toremove]] <- NULL
+}
+
+simS <- lapply(sim,
+               function(x) melt(x, id.vars=c("time", "site", "type", "height"))) %>%
+    do.call(what="rbind")
+
 
 save(file="DCEPbulk.Rdata", simS)
