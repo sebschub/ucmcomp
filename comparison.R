@@ -60,6 +60,15 @@ filter_ccBBIN <- function(df) {
 }
 
 ## filter 2m air temperature
+filter_wv_10m <- function(df) {
+    df %>%
+        filter(variable=="wv") %>%
+            droplevels() %>%
+                get_th(10)
+}
+
+
+## filter 2m air temperature
 filter_at_2m <- function(df) {
     df %>%
         filter(variable=="at") %>%
@@ -119,3 +128,22 @@ p.at <- ggplot( filter_at_2m(dfav), aes(x=time, y=value, color=type)) + geom_poi
 p.atVLNF <- ggplot( filter_at_2m(dfav)%>%filter(site=="VLNF"), aes(x=time, y=value, color=type)) + geom_point() + geom_line() + facet_grid(variable~site, scales="free_y")
 
 p.atVLNFts <- ggplot( df.at %>%filter(site=="VLNF"), aes(x=time, y=value, color=type)) + geom_point() + geom_line() + facet_grid(variable~site, scales="free_y")
+
+#### Wind velocity
+df.wv <- df %>%
+    filter_wv_10m()
+
+rm.wv <- calc_rmse_mbe(df.wv)
+
+p.wv <- ggplot( filter_wv_10m(dfav), aes(x=time, y=value, color=type)) + geom_point() + geom_line() + facet_grid(variable~site, scales="free_y")
+
+
+
+#### Potential temperature
+
+p.pt <- ggplot( dfav %>% filter(variable=="pt", site=="BKLH" | site=="VLNF" | site=="BSPR"), aes(x=value, y=height, color=type)) +  geom_point() + facet_grid(time~site)
+
+## one day
+pdate <- strptime("2002-06-17 00:00:00", format="%Y-%m-%d %H:%M:%S", tz="Etc/GMT-1")
+
+p.ptday <- ggplot( df %>% filter(variable=="pt", time>=pdate, time<pdate+3600*6, site=="BKLH" | site=="VLNF" | site=="BSPR"), aes(x=value, y=height, color=type)) +  geom_point() + facet_grid(time~site)
