@@ -32,28 +32,28 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
         dim <- var.inq.nc(nc,v)$dimids
         ## for now, assume dim[1] and dim[2] are rlon and rlat, dim[lenght(dim)] time
         if (length(dim)==3) {
-            heights[[v]] <- NaN
-        } else if (length(dim)==4) {
-            tryCatch({
-                ## dimension variable available
-                h <- var.get.nc(nc,dim.inq.nc(nc,dim[3])$name)
-                heightids[[v]] <- which(h<=maxheight)
-                heights[[v]] <- h[heightids[[v]]]
-            }, error=function(e) {
-                ## dimension variable not available, use argument values
-                heightids[[v]] <-
-                    seq(from=dim.inq.nc(nc,dim[3])$length, by=-1, length.out=length(levels))
-                heights[[v]] <- levels
-                
+            for (s in 1:nrow(sitelli)) {
+                heights[[v]][[s]] <- NaN
             }
-                     )
+        } else if (length(dim)==4) {
+            h <- var.get.nc(nc,dim.inq.nc(nc,dim[3])$name)
+            if (!is.null(h)) {
+                for (s in 1:nrow(sitelli)) {
+                    heightids[[v]][[s]] <- which(h<=maxheight)
+                    heights[[v]][[s]] <- h[ heightids[[v]][[s]] ]
+                }
+            } else {
+                heightids[[v]] <- list()
+                for (s in 1:nrow(sitelli)) {
+                    heightids[[v]][[s]] <- which( levels[sitelli$ilon[s], sitelli$ilat[s],] <= maxheight)
+                    heights[[v]][[s]] <- levels[ sitelli$ilon[s], sitelli$ilat[s], heightids[[v]][[s]] ]
+                }
+            }
         } else {
             stop(paste("Number of dimensions of",v,"currently not treated."))
         }
         
     }
-    ## round heights to ensure grouping by height is possible
-    heights <- lapply(heights, function(x) round(x, digits=2))
 
     close.nc(nc)
     dates <- seq.POSIXt(from=startdate, by=hinc*3600, length.out=ninc)
@@ -91,20 +91,22 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
                        values <- apply(
                            tempfield[(ilon-average):(ilon+average),
                                      (ilat-average):(ilat+average),
-                                     heightids[[v]],
+                                     heightids[[v]][[s]],
                                      1, drop=FALSE],
                            c(3),
                            mean
                            )
                        )
-                tempdf[[vn]] <- rbind(
-                    tempdf[[vn]],
-                    data.frame(
-                        time=dates[id],
-                        site=sitelli$site[s],
-                        height=heights[[v]],
-                        value=values)
-                    )
+                for (h in 1:length(heights[[v]][[s]])) {
+                    tempdf[[vn]] <- rbind(
+                        tempdf[[vn]],
+                        data.frame(
+                            time=dates[id],
+                            site=sitelli$site[s],
+                            height=heights[[v]][[s]][h],
+                            value=values[h])
+                        )
+                }
             }
             
             rm(tempfield, values)
@@ -118,7 +120,10 @@ read.folder.netcdf <- function(folder, startdate, ninc, var, varname, sitelli, m
     for (vn in varname) {
         names(tempdf[[vn]])[4] <- vn
     }
-
+    
+    ## round heights to ensure grouping by height is possible
+    tempdf <- lapply(tempdf, function (df) {df$height <- round(df$height, digits=2); return(df)})
+    
     return(tempdf)
 }
 
@@ -148,4 +153,19 @@ findlonlatindex <- function(llnc, rlrldf) {
             group_by(site) %>%
             summarise(ilon=which.min(abs(rlon-lon)), ilat=which.min(abs(rlat-lat)))
             )
+}
+
+calcatmoheights <- function(ncconst) {
+    require(RNetCDF)
+
+    nc <- open.nc(ncconst)
+    hsurf <- var.get.nc(nc, "HSURF")
+    hhl <- var.get.nc(nc, "HHL")
+
+    height <- array(0, dim=(dim(hhl)-c(0,0,1)))
+    for (i in 1:(dim(hhl)[3]-1)) {
+        height[,,i] <- 1/2*(hhl[,,i] + hhl[,,i+1]) - hsurf
+    }
+    return(height)
+    
 }
