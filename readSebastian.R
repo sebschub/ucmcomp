@@ -1,8 +1,10 @@
 source("netcdffunc.R")
 source("sitecoord.R")
+source("CCLMcalc.R")
 
-startdate <- strptime("2002-06-10 01:00:00", format="%Y-%m-%d %H:%M:%S", tz="GMT")
+startdate <- strptime("2002-06-09 23:00:00", format="%Y-%m-%d %H:%M:%S", tz="GMT")
 nts <- 30*24+1
+
 
 ## calculate site indices
 icoord <- findlonlatindex(
@@ -16,8 +18,8 @@ heights <- calcatmoheights("/iplex/01/clme/schubert/clm/output/urban_comparison/
 nurb <- read.folder.netcdf(
     "/iplex/01/clme/schubert/clm/output/urban_comparison/basel0.009/out02/",
     startdate, nts,
-    c("T_2M", "U_10M_AV", "V_10M_AV", "ASHFL_S", "ALHFL_S", "ALWD_S", "ALWU_S", "ASWDIR_S", "ASWDIFD_S", "ASWDIFU_S", "CLCT", "T_G", "P"),
-    c("at", "wvu", "wvv", "fh", "fl", "ld", "lu", "sd_dir", "sd_diff", "su", "cc", "tg", "ap"),
+    c("T_2M", "U_10M_AV", "V_10M_AV", "ASHFL_S", "ALHFL_S", "ALWD_S", "ALWU_S", "ASWDIR_S", "ASWDIFD_S", "ASWDIFU_S", "CLCT", "T_G", "P", "AUMFL_S", "AVMFL_S"),
+    c("at", "wvu", "wvv", "fh", "fl", "ld", "lu", "sd_dir", "sd_diff", "su", "cc", "tg", "ap", "fu", "fv"),
     icoord,
     maxheight=500,
     levels = heights)
@@ -43,8 +45,8 @@ nurb <- c(nurb, nurb3d)
 urb <- read.folder.netcdf(
     "/iplex/01/clme/schubert/clm/output/urban_comparison/basel0.009_urb/out02/",
     startdate, nts,
-    c("T_2M", "U_10M_AV", "V_10M_AV", "ASHFL_S", "ALHFL_S", "ALWD_S", "ALWU_S", "ASWDIR_S", "ASWDIFD_S", "ASWDIFU_S", "CLCT", "T_G", "P"),
-    c("at", "wvu", "wvv", "fh", "fl", "ld", "lu", "sd_dir", "sd_diff", "su", "cc", "tg", "ap"),
+    c("T_2M", "U_10M_AV", "V_10M_AV", "ASHFL_S", "ALHFL_S", "ALWD_S", "ALWU_S", "ASWDIR_S", "ASWDIFD_S", "ASWDIFU_S", "CLCT", "T_G", "P",  "AUMFL_S", "AVMFL_S"),
+    c("at", "wvu", "wvv", "fh", "fl", "ld", "lu", "sd_dir", "sd_diff", "su", "cc", "tg", "ap", "fu", "fv"),
     icoord,
     maxheight=500,
     levels = heights)
@@ -71,7 +73,7 @@ for (vn in names(nurb)) {
     sim[[vn]] <- rbind(nurb[[vn]], urb[[vn]])
 }
 
-
+save(file="sim.Rdata", sim)
 simS <- calcderived(sim)
 
 save(file="DCEPbulk.Rdata", simS)
