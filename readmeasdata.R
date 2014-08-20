@@ -135,6 +135,10 @@ fl <- readBUBBLEmult("BUBBLE/fl", c(2,3,4,5,6,7), c("BSPR","BSPA","BMES", "ALLS"
                      "fl", c(31.70, 29.90, 29.20, 15.80, 3.30, 28.0))
 fl <- calcAverage(fl, -10*60)
 
+## soil heat flux
+fg <- readBUBBLEmult("BUBBLE/fg", c(2,3,4), c("BLER", "GRNZ", "VLNF"),
+                     "fg", c(0,0,0), sep="\t", na.strings = "-9999.0")
+fg <- mutate(fg, value=-value)
 
 ## average incoming longwave radiation every 10 min, time indicates end of averaging period
 ld <- readBUBBLEmult("BUBBLE/ld", c(2,3,4,5,6,7,8), c("BSPR","BSPA","BMES", "ALLS", "VLNF", "GRNZ", "BLER"),
@@ -204,6 +208,6 @@ wd <- readBUBBLE("BUBBLE/wd_bklh", "BKLH", "wd",
 wd <- selectFullHours(wd)
 
 
-bubble <- rbind(at,fh,fl,ld,lu,sd,su,wv,al,rt,tg,cc,pt,wv2,wd)
+bubble <- rbind(at,fh,fl,fg,ld,lu,sd,su,wv,al,rt,tg,cc,pt,wv2,wd)
 
 save(file="measurements.Rdata", bubble)
