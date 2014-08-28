@@ -181,6 +181,9 @@ plotprofile <- function(df) {
 ## load data, ADD YOUR DATA HERE
 load("measurements.Rdata")
 load("DCEPbulk.Rdata")
+load("TERRAurb.Rdata")
+simH2 <- simH
+load("TERRAurb_noahf.Rdata")
 
 ## measurements: average over different sensors at same height and
 ## remove `subtype`; combine with simulation; ADD YOUR DATA HERE
@@ -188,12 +191,14 @@ df <- bubble %>%
     group_by(time, site, type, height, variable) %>% 
     summarize(value=mean(value)) %>%
     rbind(simS) %>%
+    rbind(simH) %>%
+    rbind(simH2) %>%
     ungroup()
 
 ## remove old DCEP simulation and CCLM5 Simulation
-## df <- df %>%
-##     filter(!(type %in% c("bulk5", "DCEP"))) %>%
-##     droplevels()
+df <- df %>%
+    filter(!(type %in% c("bulk5", "DCEP"))) %>%
+    droplevels()
 
 
 #### Fluxes
