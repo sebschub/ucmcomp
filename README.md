@@ -1,6 +1,8 @@
 ucmcomp
 =======
 
+[EDIT MD] Just checking whether this works...
+
 This repository includes scripts to compare RCM output with BUBBLE
 data. In particular, different UCM will be tested.
 
